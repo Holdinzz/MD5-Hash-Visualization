@@ -71,6 +71,7 @@ interface MD5StateSetters {
   }) => void;
   setStage3: (value: {
     working: { A: string; B: string; C: string; D: string };
+    saved: { AA: string; BB: string; CC: string; DD: string };
     final: string;
   }) => void;
 }
@@ -134,6 +135,18 @@ export default function md5(
     state: [] as { A: string; B: string; C: string; D: string }[],
   };
 
+  // Variables to save the last block's initial values
+  let lastAA: number = 0;
+  let lastBB: number = 0;
+  let lastCC: number = 0;
+  let lastDD: number = 0;
+
+  // Variables to save the final values after all block processing
+  let finalA: number = 0;
+  let finalB: number = 0;
+  let finalC: number = 0;
+  let finalD: number = 0;
+
   for (let i = 0; i < numBlocks; ++i) {
     // Turn the input into an array of words
     const m: number[] = getChunk(i, inputBytes);
@@ -141,6 +154,14 @@ export default function md5(
     let BB: number = B;
     let CC: number = C;
     let DD: number = D;
+
+    // Save the last block's initial values
+    if (i === numBlocks - 1) {
+      lastAA = AA;
+      lastBB = BB;
+      lastCC = CC;
+      lastDD = DD;
+    }
 
     let E: number;
     let g: number;
@@ -195,14 +216,29 @@ export default function md5(
     B += BB;
     C += CC;
     D += DD;
+
+    // Save final values after last block
+    if (i === numBlocks - 1) {
+      finalA = A;
+      finalB = B;
+      finalC = C;
+      finalD = D;
+    }
   }
 
   // Stage 3 - Working State and Final Result
   const workingState = {
-    A: A.toString(16).padStart(8, "0"),
-    B: B.toString(16).padStart(8, "0"),
-    C: C.toString(16).padStart(8, "0"),
-    D: D.toString(16).padStart(8, "0"),
+    A: (finalA - lastAA).toString(16).padStart(8, "0").slice(-8),
+    B: (finalB - lastBB).toString(16).padStart(8, "0").slice(-8),
+    C: (finalC - lastCC).toString(16).padStart(8, "0").slice(-8),
+    D: (finalD - lastDD).toString(16).padStart(8, "0").slice(-8),
+  };
+
+  const savedState = {
+    AA: lastAA.toString(16).padStart(8, "0"),
+    BB: lastBB.toString(16).padStart(8, "0"),
+    CC: lastCC.toString(16).padStart(8, "0"),
+    DD: lastDD.toString(16).padStart(8, "0"),
   };
 
   const result: ArrayBuffer = new ArrayBuffer(16);
@@ -218,6 +254,7 @@ export default function md5(
 
   stateSetters?.setStage3({
     working: workingState,
+    saved: savedState,
     final: finalHash,
   });
 
